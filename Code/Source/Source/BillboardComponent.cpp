@@ -1,0 +1,104 @@
+#include "BillboardComponent.h"
+#include <AzCore/Serialization/SerializeContext.h>
+#include <AzCore/Serialization/EditContext.h>
+#include <AzCore/Component/TransformBus.h>
+#include <AzCore/Math/Transform.h>
+
+namespace BillboardGem
+{
+    void BillboardComponent::Reflect(AZ::ReflectContext* context)
+    {
+        if (auto serializeContext = azrtti_cast<AZ::SerializeContext*>(context))
+        {
+            serializeContext->Class<BillboardComponent, AZ::Component>()
+                ->Version(1)
+                ->Field("FaceCamera", &BillboardComponent::m_faceCamera)
+                ->Field("CameraEntity", &BillboardComponent::m_cameraEntityId)
+                ->Field("ForwardAxis", &BillboardComponent::m_forwardAxis)
+                ->Field("BillboardMode", &BillboardComponent::m_billboardMode); // Save the mode
+
+            if (AZ::EditContext* editContext = serializeContext->GetEditContext())
+            {
+                editContext->Class<BillboardComponent>("Billboard", "Makes the entity face a specific target")
+                    ->ClassElement(AZ::Edit::ClassElements::EditorData, "")
+                        ->Attribute(AZ::Edit::Attributes::Category, "Rendering")
+                        ->Attribute(AZ::Edit::Attributes::AppearsInAddComponentMenu, AZ_CRC_CE("Game"))
+                    
+                    ->DataElement(AZ::Edit::UIHandlers::Default, &BillboardComponent::m_faceCamera, "Enable Billboard", "Should the entity rotate?")
+                    ->DataElement(AZ::Edit::UIHandlers::Default, &BillboardComponent::m_cameraEntityId, "Target Entity", "Select the Camera to look at.")
+                    ->DataElement(AZ::Edit::UIHandlers::ComboBox, &BillboardComponent::m_forwardAxis, "Forward Axis", "Which local axis points at the target?")
+                        ->EnumAttribute(AZ::Transform::Axis::XPositive, "X Positive")
+                        ->EnumAttribute(AZ::Transform::Axis::XNegative, "X Negative")
+                        ->EnumAttribute(AZ::Transform::Axis::YPositive, "Y Positive")
+                        ->EnumAttribute(AZ::Transform::Axis::YNegative, "Y Negative")
+                        ->EnumAttribute(AZ::Transform::Axis::ZPositive, "Z Positive")
+                        ->EnumAttribute(AZ::Transform::Axis::ZNegative, "Z Negative")
+                    
+                    ->DataElement(AZ::Edit::UIHandlers::ComboBox, &BillboardComponent::m_billboardMode, "Billboard Mode", "How should the entity track the camera?")
+                        ->EnumAttribute(BillboardMode::Spherical, "Spherical (Look-At)")
+                        ->EnumAttribute(BillboardMode::Cylindrical, "Cylindrical (Lock Upright)")
+                        ->EnumAttribute(BillboardMode::CameraAligned, "Camera-Aligned (Perfectly Flat)");
+            }
+        }
+    }
+
+    void BillboardComponent::Init() {}
+
+    void BillboardComponent::Activate()
+    {
+        AZ::TickBus::Handler::BusConnect();
+    }
+
+    void BillboardComponent::Deactivate()
+    {
+        AZ::TickBus::Handler::BusDisconnect();
+    }
+
+    void BillboardComponent::OnTick(float deltaTime, AZ::ScriptTimePoint time)
+    {
+        if (!m_faceCamera) return;
+
+        if (m_cameraEntityId.IsValid())
+        {
+            // Get the Camera's FULL transform, not just position
+            AZ::Transform cameraTransform = AZ::Transform::CreateIdentity();
+            AZ::TransformBus::EventResult(cameraTransform, m_cameraEntityId, &AZ::TransformBus::Events::GetWorldTM);
+
+            AZ::Vector3 myPosition = AZ::Vector3::CreateZero();
+            AZ::TransformBus::EventResult(myPosition, GetEntityId(), &AZ::TransformBus::Events::GetWorldTranslation);
+
+            AZ::Transform finalTransform = AZ::Transform::CreateIdentity();
+
+            if (m_billboardMode == BillboardMode::CameraAligned)
+            {
+                // To lay perfectly flat against the screen, we look exactly opposite to the camera's forward direction
+                AZ::Vector3 cameraForward = cameraTransform.GetBasisY(); 
+                AZ::Vector3 lookTarget = myPosition - cameraForward;
+                
+                finalTransform = AZ::Transform::CreateLookAt(myPosition, lookTarget, m_forwardAxis);
+            }
+            else
+            {
+                AZ::Vector3 targetPosition = cameraTransform.GetTranslation();
+                
+                if (m_billboardMode == BillboardMode::Cylindrical)
+                {
+                    targetPosition.SetZ(myPosition.GetZ());
+                }
+
+                // Safety check for Spherical/Cylindrical math
+                if (!myPosition.IsClose(targetPosition, 0.001f))
+                {
+                    finalTransform = AZ::Transform::CreateLookAt(myPosition, targetPosition, m_forwardAxis);
+                }
+                else 
+                {
+                    return; // Skip update if they occupy the exact same coordinate
+                }
+            }
+
+            // Apply the final math
+            AZ::TransformBus::Event(GetEntityId(), &AZ::TransformBus::Events::SetWorldTM, finalTransform);
+        }
+    }
+}
