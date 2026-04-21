@@ -6,6 +6,7 @@
 
 #include <Clients/BillboardGemSystemComponent.h>
 #include "Source/BillboardComponent.h"
+#include "Source/SpriteComponent.h"
 
 namespace BillboardGem
 {
@@ -23,6 +24,7 @@ namespace BillboardGem
         m_descriptors.insert(m_descriptors.end(), {
             BillboardGemSystemComponent::CreateDescriptor(),
             BillboardComponent::CreateDescriptor(),
+            SpriteComponent::CreateDescriptor(),
             });
     }
 
