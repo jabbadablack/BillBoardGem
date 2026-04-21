@@ -18,12 +18,12 @@
         "Linux","iOS","Windows","Android"
     ],
     "icon_path": "",
-    "requirements": "",
+    "requirements": "Camera",
     "documentation_url": "",
     "dependencies": [
         "Camera"
     ],
-    "repo_uri": "",
+    "repo_uri": "https://github.com/jabbadablack/BillBoardGem",
     "compatible_engines": [
     ],
     "engine_api_dependencies":[
