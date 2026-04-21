@@ -32,8 +32,8 @@ namespace BillboardGem
     private:
         bool m_faceCamera = true;
         AZ::EntityId m_cameraEntityId;
-        AZ::Transform::Axis m_forwardAxis = AZ::Transform::Axis::YNegative;
-        
         BillboardMode m_billboardMode = BillboardMode::Spherical; 
+        
+        float m_angleOffset = 0.0f; 
     };
 }

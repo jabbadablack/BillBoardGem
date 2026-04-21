@@ -14,8 +14,8 @@ namespace BillboardGem
                 ->Version(1)
                 ->Field("FaceCamera", &BillboardComponent::m_faceCamera)
                 ->Field("CameraEntity", &BillboardComponent::m_cameraEntityId)
-                ->Field("ForwardAxis", &BillboardComponent::m_forwardAxis)
-                ->Field("BillboardMode", &BillboardComponent::m_billboardMode);
+                ->Field("BillboardMode", &BillboardComponent::m_billboardMode)
+                ->Field("AngleOffset", &BillboardComponent::m_angleOffset); // Save the angle
 
             if (AZ::EditContext* editContext = serializeContext->GetEditContext())
             {
@@ -26,18 +26,13 @@ namespace BillboardGem
                     
                     ->DataElement(AZ::Edit::UIHandlers::Default, &BillboardComponent::m_faceCamera, "Enable Billboard", "Should the entity rotate?")
                     ->DataElement(AZ::Edit::UIHandlers::Default, &BillboardComponent::m_cameraEntityId, "Target Entity", "Select the Camera to look at.")
-                    ->DataElement(AZ::Edit::UIHandlers::ComboBox, &BillboardComponent::m_forwardAxis, "Forward Axis", "Which local axis points at the target?")
-                        ->EnumAttribute(AZ::Transform::Axis::XPositive, "X Positive")
-                        ->EnumAttribute(AZ::Transform::Axis::XNegative, "X Negative")
-                        ->EnumAttribute(AZ::Transform::Axis::YPositive, "Y Positive")
-                        ->EnumAttribute(AZ::Transform::Axis::YNegative, "Y Negative")
-                        ->EnumAttribute(AZ::Transform::Axis::ZPositive, "Z Positive")
-                        ->EnumAttribute(AZ::Transform::Axis::ZNegative, "Z Negative")
                     
                     ->DataElement(AZ::Edit::UIHandlers::ComboBox, &BillboardComponent::m_billboardMode, "Billboard Mode", "How should the entity track the camera?")
                         ->EnumAttribute(BillboardMode::Spherical, "Spherical (Look-At)")
                         ->EnumAttribute(BillboardMode::Cylindrical, "Cylindrical (Lock Upright)")
-                        ->EnumAttribute(BillboardMode::CameraAligned, "Camera-Aligned (Perfectly Flat)");
+                        ->EnumAttribute(BillboardMode::CameraAligned, "Window-Aligned (Perfectly Flat)")
+                    
+                    ->DataElement(AZ::Edit::UIHandlers::Default, &BillboardComponent::m_angleOffset, "Angle Offset", "Rotation offset in degrees (e.g., 0, 45, 90)");
             }
         }
     }
@@ -68,12 +63,14 @@ namespace BillboardGem
 
             AZ::Transform finalTransform = AZ::Transform::CreateIdentity();
 
+            float offsetRadians = m_angleOffset * (AZ::Constants::Pi / 180.0f);
+
             if (m_billboardMode == BillboardMode::CameraAligned)
             {
-                AZ::Vector3 cameraForward = cameraTransform.GetBasisY(); 
-                AZ::Vector3 lookTarget = myPosition - cameraForward;
+                AZ::Transform rotationOffset = AZ::Transform::CreateRotationZ(offsetRadians);
                 
-                finalTransform = AZ::Transform::CreateLookAt(myPosition, lookTarget, m_forwardAxis);
+                finalTransform = cameraTransform * rotationOffset;
+                finalTransform.SetTranslation(myPosition);
             }
             else
             {
@@ -86,7 +83,9 @@ namespace BillboardGem
 
                 if (!myPosition.IsClose(targetPosition, 0.001f))
                 {
-                    finalTransform = AZ::Transform::CreateLookAt(myPosition, targetPosition, m_forwardAxis);
+                    finalTransform = AZ::Transform::CreateLookAt(myPosition, targetPosition, AZ::Transform::Axis::YNegative);
+                    
+                    finalTransform = finalTransform * AZ::Transform::CreateRotationZ(offsetRadians);
                 }
                 else 
                 {
