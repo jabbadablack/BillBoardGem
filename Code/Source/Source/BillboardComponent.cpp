@@ -15,7 +15,7 @@ namespace BillboardGem
                 ->Field("FaceCamera", &BillboardComponent::m_faceCamera)
                 ->Field("CameraEntity", &BillboardComponent::m_cameraEntityId)
                 ->Field("BillboardMode", &BillboardComponent::m_billboardMode)
-                ->Field("AngleOffset", &BillboardComponent::m_angleOffset); // Save the angle
+                ->Field("AngleOffset", &BillboardComponent::m_angleOffset);
 
             if (AZ::EditContext* editContext = serializeContext->GetEditContext())
             {
@@ -28,9 +28,9 @@ namespace BillboardGem
                     ->DataElement(AZ::Edit::UIHandlers::Default, &BillboardComponent::m_cameraEntityId, "Target Entity", "Select the Camera to look at.")
                     
                     ->DataElement(AZ::Edit::UIHandlers::ComboBox, &BillboardComponent::m_billboardMode, "Billboard Mode", "How should the entity track the camera?")
-                        ->EnumAttribute(BillboardMode::Spherical, "Spherical (Look-At)")
-                        ->EnumAttribute(BillboardMode::Cylindrical, "Cylindrical (Lock Upright)")
-                        ->EnumAttribute(BillboardMode::CameraAligned, "Window-Aligned (Perfectly Flat)")
+                        ->EnumAttribute(BillboardMode::Spherical, "Spherical")
+                        ->EnumAttribute(BillboardMode::Cylindrical, "Cylindrical")
+                        ->EnumAttribute(BillboardMode::CameraAligned, "Window-Aligned")
                     
                     ->DataElement(AZ::Edit::UIHandlers::Default, &BillboardComponent::m_angleOffset, "Angle Offset", "Rotation offset in degrees (e.g., 0, 45, 90)");
             }
@@ -64,28 +64,41 @@ namespace BillboardGem
             AZ::Transform finalTransform = AZ::Transform::CreateIdentity();
 
             float offsetRadians = m_angleOffset * (AZ::Constants::Pi / 180.0f);
+            AZ::Transform rotationOffset = AZ::Transform::CreateRotationZ(offsetRadians);
 
             if (m_billboardMode == BillboardMode::CameraAligned)
             {
-                AZ::Transform rotationOffset = AZ::Transform::CreateRotationZ(offsetRadians);
-                
                 finalTransform = cameraTransform * rotationOffset;
                 finalTransform.SetTranslation(myPosition);
             }
-            else
+            else if (m_billboardMode == BillboardMode::Cylindrical)
+            {
+                AZ::Vector3 cameraForward = cameraTransform.GetBasisY();
+                cameraForward.SetZ(0.0f);
+
+                if (cameraForward.GetLengthSq() > 0.0001f)
+                {
+                    AZ::Vector3 targetPosition = myPosition + cameraForward;
+                    finalTransform = AZ::Transform::CreateLookAt(myPosition, targetPosition, AZ::Transform::Axis::YPositive);
+                }
+                else
+                {
+                    AZ::Vector3 cameraUp = cameraTransform.GetBasisZ();
+                    cameraUp.SetZ(0.0f);
+                    AZ::Vector3 targetPosition = myPosition + cameraUp;
+                    finalTransform = AZ::Transform::CreateLookAt(myPosition, targetPosition, AZ::Transform::Axis::YPositive);
+                }
+
+                finalTransform = finalTransform * rotationOffset;
+            }
+            else // Spherical
             {
                 AZ::Vector3 targetPosition = cameraTransform.GetTranslation();
                 
-                if (m_billboardMode == BillboardMode::Cylindrical)
-                {
-                    targetPosition.SetZ(myPosition.GetZ());
-                }
-
                 if (!myPosition.IsClose(targetPosition, 0.001f))
                 {
                     finalTransform = AZ::Transform::CreateLookAt(myPosition, targetPosition, AZ::Transform::Axis::YNegative);
-                    
-                    finalTransform = finalTransform * AZ::Transform::CreateRotationZ(offsetRadians);
+                    finalTransform = finalTransform * rotationOffset;
                 }
                 else 
                 {
