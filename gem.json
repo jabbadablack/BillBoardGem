@@ -3,11 +3,11 @@
     "version": "1.0.0",
     "display_name": "Billboard",
     "license": "Apache-2.0",
-    "license_url": "",
+    "license_url": "https://www.apache.org/licenses/LICENSE-2.0",
     "origin": "JabbaDaBlack",
-    "origin_url": "",
+    "origin_url": "https://github.com/jabbadablack",
     "type": "Code",
-    "summary": "",
+    "summary": "I made this to help with rendering 2D sprites, grass, and background elements in a 3D world. Instead of writing complex custom shaders, you can just drop this component onto any standard mesh, and it will automatically handle the math to make it face the camera.",
     "canonical_tags": [
         "Gem"
     ],
