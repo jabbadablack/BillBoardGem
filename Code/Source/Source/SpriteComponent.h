@@ -46,10 +46,12 @@ namespace BillboardGem
         void StopAnimation() override;
 
     private:
-        AZStd::string m_uvTileUProperty = "baseColor.textureMap.Uv.TileU";
-        AZStd::string m_uvTileVProperty = "baseColor.textureMap.Uv.TileV";
-        AZStd::string m_uvOffsetUProperty = "baseColor.textureMap.Uv.OffsetU";
-        AZStd::string m_uvOffsetVProperty = "baseColor.textureMap.Uv.OffsetV";
+        AZ::EntityId m_materialEntityId;
+
+        AZStd::string m_uvTileUProperty = "uv.tileU";
+        AZStd::string m_uvTileVProperty = "uv.tileV";
+        AZStd::string m_uvOffsetUProperty = "uv.offsetU";
+        AZStd::string m_uvOffsetVProperty = "uv.offsetV";
 
         int m_columns = 1;
         int m_rows = 1;

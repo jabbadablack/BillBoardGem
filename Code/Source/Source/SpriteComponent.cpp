@@ -21,6 +21,7 @@ namespace BillboardGem
 
             serializeContext->Class<SpriteComponent, AZ::Component>()
                 ->Version(1)
+                ->Field("MaterialEntity", &SpriteComponent::m_materialEntityId)
                 ->Field("UVTileUProperty", &SpriteComponent::m_uvTileUProperty)
                 ->Field("UVTileVProperty", &SpriteComponent::m_uvTileVProperty)
                 ->Field("UVOffsetUProperty", &SpriteComponent::m_uvOffsetUProperty)
@@ -49,6 +50,7 @@ namespace BillboardGem
                         ->DataElement(AZ::Edit::UIHandlers::Default, &SpriteComponent::m_rows, "Rows", "")
                     
                     ->ClassElement(AZ::Edit::ClassElements::Group, "Material Integration")
+                        ->DataElement(AZ::Edit::UIHandlers::Default, &SpriteComponent::m_materialEntityId, "Target Entity", "Leave blank to target this entity.")
                         ->DataElement(AZ::Edit::UIHandlers::Default, &SpriteComponent::m_uvTileUProperty, "Tile U String", "")
                         ->DataElement(AZ::Edit::UIHandlers::Default, &SpriteComponent::m_uvTileVProperty, "Tile V String", "")
                         ->DataElement(AZ::Edit::UIHandlers::Default, &SpriteComponent::m_uvOffsetUProperty, "Offset U String", "")
@@ -76,16 +78,18 @@ namespace BillboardGem
 
         if (m_columns > 0 && m_rows > 0)
         {
+            AZ::EntityId targetEntity = m_materialEntityId.IsValid() ? m_materialEntityId : GetEntityId();
+
             float tileU = 1.0f / m_columns;
             float tileV = 1.0f / m_rows;
             AZ::Render::MaterialAssignmentId defaultMaterialId;
             
             AZ::Render::MaterialComponentRequestBus::Event(
-                GetEntityId(), &AZ::Render::MaterialComponentRequests::SetPropertyValue, 
+                targetEntity, &AZ::Render::MaterialComponentRequests::SetPropertyValue, 
                 defaultMaterialId, m_uvTileUProperty, AZStd::make_any<float>(tileU));
                 
             AZ::Render::MaterialComponentRequestBus::Event(
-                GetEntityId(), &AZ::Render::MaterialComponentRequests::SetPropertyValue, 
+                targetEntity, &AZ::Render::MaterialComponentRequests::SetPropertyValue, 
                 defaultMaterialId, m_uvTileVProperty, AZStd::make_any<float>(tileV));
         }
 
@@ -145,14 +149,15 @@ namespace BillboardGem
             float offsetX = currentColumn * scaleX;
             float offsetY = currentRow * scaleY; 
 
+            AZ::EntityId targetEntity = m_materialEntityId.IsValid() ? m_materialEntityId : GetEntityId();
             AZ::Render::MaterialAssignmentId defaultMaterialId;
             
             AZ::Render::MaterialComponentRequestBus::Event(
-                GetEntityId(), &AZ::Render::MaterialComponentRequests::SetPropertyValue, 
+                targetEntity, &AZ::Render::MaterialComponentRequests::SetPropertyValue, 
                 defaultMaterialId, m_uvOffsetUProperty, AZStd::make_any<float>(offsetX));
                 
             AZ::Render::MaterialComponentRequestBus::Event(
-                GetEntityId(), &AZ::Render::MaterialComponentRequests::SetPropertyValue, 
+                targetEntity, &AZ::Render::MaterialComponentRequests::SetPropertyValue, 
                 defaultMaterialId, m_uvOffsetVProperty, AZStd::make_any<float>(offsetY));
         }
     }
