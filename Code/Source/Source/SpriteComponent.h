@@ -36,6 +36,9 @@ namespace BillboardGem
         AZ_COMPONENT(SpriteComponent, "{1dacaae8-c704-45ce-9928-8ecb9b9ba97c}");
 
         static void Reflect(AZ::ReflectContext* context);
+        static void GetProvidedServices(AZ::ComponentDescriptor::DependencyArrayType& provided);
+        static void GetIncompatibleServices(AZ::ComponentDescriptor::DependencyArrayType& incompatible);
+        static void GetDependentServices(AZ::ComponentDescriptor::DependencyArrayType& dependent);
 
         void Init() override;
         void Activate() override;
@@ -54,7 +57,6 @@ namespace BillboardGem
         void ApplyMaterialOffset(float offsetU, float offsetV);
 
         AZ::EntityId m_materialEntityId;
-        int m_startupDelayFrames = 5;
 
         AZStd::string m_uvTileUProperty = "uv.tileU";
         AZStd::string m_uvTileVProperty = "uv.tileV";
@@ -67,10 +69,11 @@ namespace BillboardGem
         AZStd::vector<SpriteAnimation> m_animations;
         AZStd::string m_defaultAnimation = "Idle";
 
+        // Internal State tracking
         bool m_isPlaying = false;
+        bool m_isMaterialInitialized = false; // NEW: Tracks dynamic material loading
         SpriteAnimation m_currentAnim; 
         float m_timeAccumulator = 0.0f;
-        
         int m_currentFrame = 0; 
     };
 }

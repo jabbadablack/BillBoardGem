@@ -4,11 +4,16 @@
 #include <AzCore/RTTI/BehaviorContext.h> 
 #include <AtomLyIntegration/CommonFeatures/Material/MaterialComponentBus.h>
 #include <AzCore/std/any.h>
+#include <AzCore/Debug/Trace.h> // Required for AZ_Assert
 
 namespace BillboardGem
 {
     void SpriteComponent::Reflect(AZ::ReflectContext* context)
     {
+        // Debug Asserts
+        AZ_Assert(context != nullptr, "ReflectContext is null! Cannot reflect SpriteComponent.");
+        AZ_Assert(AZ::Environment::GetInstance() != nullptr, "O3DE Environment is not fully initialized.");
+
         if (auto serializeContext = azrtti_cast<AZ::SerializeContext*>(context))
         {
             serializeContext->Class<SpriteAnimation>()
@@ -20,9 +25,8 @@ namespace BillboardGem
                 ->Field("FPS", &SpriteAnimation::m_fps);
 
             serializeContext->Class<SpriteComponent, AZ::Component>()
-                ->Version(1)
+                ->Version(2)
                 ->Field("MaterialEntity", &SpriteComponent::m_materialEntityId)
-                ->Field("StartupDelayFrames", &SpriteComponent::m_startupDelayFrames) 
                 ->Field("UVTileUProperty", &SpriteComponent::m_uvTileUProperty)
                 ->Field("UVTileVProperty", &SpriteComponent::m_uvTileVProperty)
                 ->Field("UVOffsetUProperty", &SpriteComponent::m_uvOffsetUProperty)
@@ -58,7 +62,6 @@ namespace BillboardGem
                     
                     ->ClassElement(AZ::Edit::ClassElements::Group, "Material Integration")
                         ->DataElement(AZ::Edit::UIHandlers::Default, &SpriteComponent::m_materialEntityId, "Target Entity", "Leave blank to target this entity.")
-                        ->DataElement(AZ::Edit::UIHandlers::Default, &SpriteComponent::m_startupDelayFrames, "Startup Delay", "Frames to wait before sending data to Atom.")
                         ->DataElement(AZ::Edit::UIHandlers::Default, &SpriteComponent::m_uvTileUProperty, "Tile U String", "")
                         ->DataElement(AZ::Edit::UIHandlers::Default, &SpriteComponent::m_uvTileVProperty, "Tile V String", "")
                         ->DataElement(AZ::Edit::UIHandlers::Default, &SpriteComponent::m_uvOffsetUProperty, "Offset U String", "")
@@ -78,10 +81,21 @@ namespace BillboardGem
         }
     }
 
-    void SpriteComponent::Init() {}
+    void SpriteComponent::Init() 
+    {
+        // Debug Asserts
+        AZ_Assert(GetEntityId().IsValid(), "Entity ID is invalid during SpriteComponent::Init!");
+        AZ_Assert(GetEntity() != nullptr, "Entity pointer is null during SpriteComponent::Init!");
+    }
 
     void SpriteComponent::Activate()
     {
+        // Debug Asserts
+        AZ_Assert(GetEntityId().IsValid(), "Entity ID is invalid during SpriteComponent::Activate!");
+        AZ_Assert(m_columns > 0 && m_rows > 0, "Grid columns and rows must be strictly greater than zero to safely activate!");
+
+        m_isMaterialInitialized = false; // Reset initialization state on boot
+        
         SpriteAnimatorRequestBus::Handler::BusConnect(GetEntityId());
         PlayAnimation(m_defaultAnimation);
         AZ::TickBus::Handler::BusConnect();
@@ -89,20 +103,26 @@ namespace BillboardGem
 
     void SpriteComponent::Deactivate()
     {
+        // Debug Asserts
+        AZ_Assert(GetEntityId().IsValid(), "Entity ID is invalid during SpriteComponent::Deactivate!");
+        AZ_Assert(GetEntity() != nullptr, "Entity pointer is null during SpriteComponent::Deactivate!");
+
         AZ::TickBus::Handler::BusDisconnect();
         SpriteAnimatorRequestBus::Handler::BusDisconnect();
     }
 
     void SpriteComponent::PlayAnimation(const AZStd::string& animationName)
     {
+        // Debug Asserts
+        AZ_Assert(!animationName.empty(), "Animation name passed to PlayAnimation cannot be empty!");
+        AZ_Assert(m_columns > 0 && m_rows > 0, "Grid columns and rows must be valid before attempting to calculate frame indexes!");
+
         for (const auto& anim : m_animations)
         {
             if (anim.m_name == animationName)
             {
                 m_currentAnim = anim;
-                
                 m_currentFrame = (anim.m_startRow * m_columns) + anim.m_startColumn; 
-                
                 m_timeAccumulator = 0.0f;
                 m_isPlaying = true;
                 return;
@@ -112,16 +132,30 @@ namespace BillboardGem
 
     void SpriteComponent::StopAnimation()
     {
+        // Debug Asserts
+        AZ_Assert(GetEntityId().IsValid(), "Entity ID is invalid during SpriteComponent::StopAnimation!");
+        AZ_Assert(GetEntity() != nullptr, "Entity pointer is null during SpriteComponent::StopAnimation!");
+
         m_isPlaying = false;
     }
 
     AZStd::vector<AZ::Render::MaterialAssignmentId> SpriteComponent::GetActiveMaterialIds(AZ::EntityId targetEntity)
     {
+        // ALL ASSERTS KEPT INTACT
+        AZ_Assert(targetEntity.IsValid(), "Target entity passed to GetActiveMaterialIds is invalid!");
+        AZ_Assert(AZ::Render::MaterialComponentRequestBus::HasHandlers(targetEntity), "Target entity does not have a connected MaterialComponentRequestBus!");
+
         AZStd::vector<AZ::Render::MaterialAssignmentId> ids;
         AZ::Render::MaterialAssignmentMap materialMap;
         
         AZ::Render::MaterialComponentRequestBus::EventResult(
-            materialMap, targetEntity, &AZ::Render::MaterialComponentRequests::GetDefaultMaterialMap);
+            materialMap, targetEntity, &AZ::Render::MaterialComponentRequests::GetMaterialMap);
+
+        if (materialMap.empty())
+        {
+            AZ::Render::MaterialComponentRequestBus::EventResult(
+                materialMap, targetEntity, &AZ::Render::MaterialComponentRequests::GetDefaultMaterialMap);
+        }
 
         for (const auto& pair : materialMap)
         {
@@ -138,6 +172,10 @@ namespace BillboardGem
 
     void SpriteComponent::ApplyMaterialScale(float tileU, float tileV)
     {
+        // ALL ASSERTS KEPT INTACT
+        AZ_Assert(tileU > 0.0f, "Tile U scale calculated as zero or negative!");
+        AZ_Assert(tileV > 0.0f, "Tile V scale calculated as zero or negative!");
+
         AZ::EntityId targetEntity = m_materialEntityId.IsValid() ? m_materialEntityId : GetEntityId();
         auto materialIds = GetActiveMaterialIds(targetEntity);
         
@@ -155,6 +193,10 @@ namespace BillboardGem
 
     void SpriteComponent::ApplyMaterialOffset(float offsetU, float offsetV)
     {
+        // ALL ASSERTS KEPT INTACT
+        AZ_Assert(!m_uvOffsetUProperty.empty(), "UV Offset U property string is empty! Material update will fail.");
+        AZ_Assert(!m_uvOffsetVProperty.empty(), "UV Offset V property string is empty! Material update will fail.");
+
         AZ::EntityId targetEntity = m_materialEntityId.IsValid() ? m_materialEntityId : GetEntityId();
         auto materialIds = GetActiveMaterialIds(targetEntity);
         
@@ -170,21 +212,49 @@ namespace BillboardGem
         }
     }
 
+    void SpriteComponent::GetProvidedServices(AZ::ComponentDescriptor::DependencyArrayType& provided)
+    {
+        provided.push_back(AZ_CRC_CE("SpriteAnimatorService"));
+    }
+
+    void SpriteComponent::GetIncompatibleServices(AZ::ComponentDescriptor::DependencyArrayType& incompatible)
+    {
+        incompatible.push_back(AZ_CRC_CE("SpriteAnimatorService"));
+    }
+
+    void SpriteComponent::GetDependentServices(AZ::ComponentDescriptor::DependencyArrayType& dependent)
+    {
+        dependent.push_back(AZ_CRC_CE("MaterialService"));
+    }
+
     void SpriteComponent::OnTick(float deltaTime, AZ::ScriptTimePoint time)
     {
-        if (m_startupDelayFrames > 0)
+        // Debug Asserts
+        AZ_Assert(deltaTime >= 0.0f, "Delta time in OnTick is negative!");
+
+        AZ::EntityId targetEntity = m_materialEntityId.IsValid() ? m_materialEntityId : GetEntityId();
+
+        // THE FIX: The Dynamic Wait. 
+        // We quietly wait until Atom's asynchronous loading finishes and the Material Component connects to the bus.
+        // This ensures our helper functions NEVER trip their internal AZ_Asserts.
+        if (!AZ::Render::MaterialComponentRequestBus::HasHandlers(targetEntity))
         {
-            m_startupDelayFrames--;
-            
-            if (m_startupDelayFrames == 0 && m_columns > 0 && m_rows > 0)
+            return; 
+        }
+
+        // The very first frame the material is fully loaded, apply the UV scale grid
+        if (!m_isMaterialInitialized)
+        {
+            if (m_columns > 0 && m_rows > 0)
             {
                 float tileU = 1.0f / static_cast<float>(m_columns);
                 float tileV = 1.0f / static_cast<float>(m_rows);
                 ApplyMaterialScale(tileU, tileV);
             }
-            return; 
+            m_isMaterialInitialized = true;
         }
 
+        // Animation logic proceeds safely
         if (!m_isPlaying || m_columns <= 0 || m_rows <= 0 || m_currentAnim.m_frameCount <= 0 || m_currentAnim.m_fps <= 0.0f) return;
 
         m_timeAccumulator += deltaTime;
