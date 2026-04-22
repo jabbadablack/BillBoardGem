@@ -4,6 +4,7 @@
 #include <AzCore/Component/TickBus.h>
 #include <AzCore/std/string/string.h>
 #include <AzCore/std/containers/vector.h>
+#include <AtomLyIntegration/CommonFeatures/Material/MaterialAssignment.h> 
 
 namespace BillboardGem
 {
@@ -12,8 +13,9 @@ namespace BillboardGem
         AZ_TYPE_INFO(SpriteAnimation, "{3b6a9f81-a9c1-4b13-9b7e-91325d72f12a}");
         
         AZStd::string m_name = "Idle";
-        int m_startFrame = 0;
-        int m_endFrame = 0;
+        int m_startRow = 0;
+        int m_startColumn = 0;
+        int m_frameCount = 1;
         float m_fps = 12.0f;
     };
 
@@ -46,10 +48,13 @@ namespace BillboardGem
         void StopAnimation() override;
 
     private:
+        AZStd::vector<AZ::Render::MaterialAssignmentId> GetActiveMaterialIds(AZ::EntityId targetEntity);
+
         void ApplyMaterialScale(float tileU, float tileV);
         void ApplyMaterialOffset(float offsetU, float offsetV);
 
         AZ::EntityId m_materialEntityId;
+        int m_startupDelayFrames = 5;
 
         AZStd::string m_uvTileUProperty = "uv.tileU";
         AZStd::string m_uvTileVProperty = "uv.tileV";
@@ -65,6 +70,7 @@ namespace BillboardGem
         bool m_isPlaying = false;
         SpriteAnimation m_currentAnim; 
         float m_timeAccumulator = 0.0f;
-        int m_currentFrame = 0;
+        
+        int m_currentFrame = 0; 
     };
 }
