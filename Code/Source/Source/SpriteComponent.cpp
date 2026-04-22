@@ -78,19 +78,10 @@ namespace BillboardGem
 
         if (m_columns > 0 && m_rows > 0)
         {
-            AZ::EntityId targetEntity = m_materialEntityId.IsValid() ? m_materialEntityId : GetEntityId();
-
-            float tileU = 1.0f / m_columns;
-            float tileV = 1.0f / m_rows;
-            AZ::Render::MaterialAssignmentId defaultMaterialId;
+            float tileU = 1.0f / static_cast<float>(m_columns);
+            float tileV = 1.0f / static_cast<float>(m_rows);
             
-            AZ::Render::MaterialComponentRequestBus::Event(
-                targetEntity, &AZ::Render::MaterialComponentRequests::SetPropertyValue, 
-                defaultMaterialId, m_uvTileUProperty, AZStd::make_any<float>(tileU));
-                
-            AZ::Render::MaterialComponentRequestBus::Event(
-                targetEntity, &AZ::Render::MaterialComponentRequests::SetPropertyValue, 
-                defaultMaterialId, m_uvTileVProperty, AZStd::make_any<float>(tileV));
+            ApplyMaterialScale(tileU, tileV);
         }
 
         PlayAnimation(m_defaultAnimation);
@@ -123,6 +114,34 @@ namespace BillboardGem
         m_isPlaying = false;
     }
 
+    void SpriteComponent::ApplyMaterialScale(float tileU, float tileV)
+    {
+        AZ::EntityId targetEntity = m_materialEntityId.IsValid() ? m_materialEntityId : GetEntityId();
+        AZ::Render::MaterialAssignmentId defaultMaterialId;
+        
+        AZ::Render::MaterialComponentRequestBus::Event(
+            targetEntity, &AZ::Render::MaterialComponentRequests::SetPropertyValue, 
+            defaultMaterialId, m_uvTileUProperty, AZStd::make_any<float>(tileU));
+            
+        AZ::Render::MaterialComponentRequestBus::Event(
+            targetEntity, &AZ::Render::MaterialComponentRequests::SetPropertyValue, 
+            defaultMaterialId, m_uvTileVProperty, AZStd::make_any<float>(tileV));
+    }
+
+    void SpriteComponent::ApplyMaterialOffset(float offsetU, float offsetV)
+    {
+        AZ::EntityId targetEntity = m_materialEntityId.IsValid() ? m_materialEntityId : GetEntityId();
+        AZ::Render::MaterialAssignmentId defaultMaterialId;
+        
+        AZ::Render::MaterialComponentRequestBus::Event(
+            targetEntity, &AZ::Render::MaterialComponentRequests::SetPropertyValue, 
+            defaultMaterialId, m_uvOffsetUProperty, AZStd::make_any<float>(offsetU));
+            
+        AZ::Render::MaterialComponentRequestBus::Event(
+            targetEntity, &AZ::Render::MaterialComponentRequests::SetPropertyValue, 
+            defaultMaterialId, m_uvOffsetVProperty, AZStd::make_any<float>(offsetV));
+    }
+
     void SpriteComponent::OnTick(float deltaTime, AZ::ScriptTimePoint time)
     {
         if (!m_isPlaying || m_columns <= 0 || m_rows <= 0 || m_currentAnim.m_fps <= 0.0f) return;
@@ -140,8 +159,8 @@ namespace BillboardGem
                 m_currentFrame = m_currentAnim.m_startFrame; 
             }
 
-            float scaleX = 1.0f / m_columns;
-            float scaleY = 1.0f / m_rows;
+            float scaleX = 1.0f / static_cast<float>(m_columns);
+            float scaleY = 1.0f / static_cast<float>(m_rows);
             
             int currentColumn = m_currentFrame % m_columns;
             int currentRow = m_currentFrame / m_columns;
@@ -149,16 +168,7 @@ namespace BillboardGem
             float offsetX = currentColumn * scaleX;
             float offsetY = currentRow * scaleY; 
 
-            AZ::EntityId targetEntity = m_materialEntityId.IsValid() ? m_materialEntityId : GetEntityId();
-            AZ::Render::MaterialAssignmentId defaultMaterialId;
-            
-            AZ::Render::MaterialComponentRequestBus::Event(
-                targetEntity, &AZ::Render::MaterialComponentRequests::SetPropertyValue, 
-                defaultMaterialId, m_uvOffsetUProperty, AZStd::make_any<float>(offsetX));
-                
-            AZ::Render::MaterialComponentRequestBus::Event(
-                targetEntity, &AZ::Render::MaterialComponentRequests::SetPropertyValue, 
-                defaultMaterialId, m_uvOffsetVProperty, AZStd::make_any<float>(offsetY));
+            ApplyMaterialOffset(offsetX, offsetY);
         }
     }
 }

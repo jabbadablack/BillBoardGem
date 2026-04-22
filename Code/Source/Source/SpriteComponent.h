@@ -46,6 +46,9 @@ namespace BillboardGem
         void StopAnimation() override;
 
     private:
+        void ApplyMaterialScale(float tileU, float tileV);
+        void ApplyMaterialOffset(float offsetU, float offsetV);
+
         AZ::EntityId m_materialEntityId;
 
         AZStd::string m_uvTileUProperty = "uv.tileU";
