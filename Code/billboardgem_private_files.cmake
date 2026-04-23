@@ -4,6 +4,8 @@ set(FILES
     Source/BillboardGemModuleInterface.h
     Source/Source/BillboardComponent.cpp
     Source/Source/BillboardComponent.h
+    Source/Source/SpriteComponent.cpp
+    Source/Source/SpriteComponent.h
     Source/Clients/BillboardGemSystemComponent.cpp
     Source/Clients/BillboardGemSystemComponent.h
 )

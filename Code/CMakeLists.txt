@@ -50,8 +50,9 @@ ly_add_target(
         PUBLIC
             AZ::AzCore
             AZ::AzFramework
-            Gem::Atom_AtomBridge.Static
             Gem::Camera
+            Gem::CommonFeaturesAtom
+            Gem::Atom_Feature_Common
 )
 
 # Here add ${gem_name} target, it depends on the Private Object library and Public API interface

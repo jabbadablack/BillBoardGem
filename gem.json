@@ -21,7 +21,8 @@
     "requirements": "Camera",
     "documentation_url": "",
     "dependencies": [
-        "Camera"
+        "Camera",
+        "AtomLyIntegration"
     ],
     "repo_uri": "https://github.com/jabbadablack/BillBoardGem",
     "compatible_engines": [
