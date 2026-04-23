@@ -11,7 +11,8 @@ namespace BillboardGem
     struct SpriteAnimation
     {
         AZ_TYPE_INFO(SpriteAnimation, "{3b6a9f81-a9c1-4b13-9b7e-91325d72f12a}");
-        
+        AZ_CLASS_ALLOCATOR(SpriteAnimation, AZ::SystemAllocator);
+
         AZStd::string m_name = "Idle";
         int m_startRow = 0;
         int m_startColumn = 0;
@@ -22,6 +23,9 @@ namespace BillboardGem
     class SpriteAnimatorRequests : public AZ::ComponentBus
     {
     public:
+        AZ_RTTI(SpriteAnimatorRequests, "{FE6F4CA8-0051-4B96-8AC9-19A6AC6B93F4}");
+        virtual ~SpriteAnimatorRequests() = default;
+
         virtual void PlayAnimation(const AZStd::string& animationName) = 0;
         virtual void StopAnimation() = 0;
     };
@@ -46,7 +50,7 @@ namespace BillboardGem
 
     protected:
         void OnTick(float deltaTime, AZ::ScriptTimePoint time) override;
-        
+
         void PlayAnimation(const AZStd::string& animationName) override;
         void StopAnimation() override;
 
@@ -69,11 +73,10 @@ namespace BillboardGem
         AZStd::vector<SpriteAnimation> m_animations;
         AZStd::string m_defaultAnimation = "Idle";
 
-        // Internal State tracking
         bool m_isPlaying = false;
-        bool m_isMaterialInitialized = false; // NEW: Tracks dynamic material loading
-        SpriteAnimation m_currentAnim; 
+        bool m_isMaterialInitialized = false;
+        SpriteAnimation m_currentAnim;
         float m_timeAccumulator = 0.0f;
-        int m_currentFrame = 0; 
+        int m_currentFrame = 0;
     };
 }

@@ -3,13 +3,13 @@
 #include <AzCore/Serialization/EditContext.h>
 #include <AzCore/Component/TransformBus.h>
 #include <AzCore/Math/Transform.h>
-#include <AzCore/Debug/Trace.h> // NEW: Required for AZ_Assert
+#include <AzCore/Debug/Trace.h> 
+#include <AzCore/Module/Environment.h>
 
 namespace BillboardGem
 {
     void BillboardComponent::Reflect(AZ::ReflectContext* context)
     {
-        // Debug Asserts
         AZ_Assert(context != nullptr, "ReflectContext is null! Cannot reflect BillboardComponent.");
         AZ_Assert(AZ::Environment::GetInstance() != nullptr, "O3DE Environment is not fully initialized.");
 
@@ -20,38 +20,36 @@ namespace BillboardGem
                 ->Field("FaceCamera", &BillboardComponent::m_faceCamera)
                 ->Field("CameraEntity", &BillboardComponent::m_cameraEntityId)
                 ->Field("BillboardMode", &BillboardComponent::m_billboardMode)
-                ->Field("AngleOffset", &BillboardComponent::m_angleOffset); 
+                ->Field("AngleOffset", &BillboardComponent::m_angleOffset);
 
             if (AZ::EditContext* editContext = serializeContext->GetEditContext())
             {
                 editContext->Class<BillboardComponent>("Billboard", "Makes the entity face a specific target")
                     ->ClassElement(AZ::Edit::ClassElements::EditorData, "")
-                        ->Attribute(AZ::Edit::Attributes::Category, "Rendering")
-                        ->Attribute(AZ::Edit::Attributes::AppearsInAddComponentMenu, AZ_CRC_CE("Game"))
-                    
+                    ->Attribute(AZ::Edit::Attributes::Category, "Rendering")
+                    ->Attribute(AZ::Edit::Attributes::AppearsInAddComponentMenu, AZ_CRC_CE("Game"))
+
                     ->DataElement(AZ::Edit::UIHandlers::Default, &BillboardComponent::m_faceCamera, "Enable Billboard", "Should the entity rotate?")
                     ->DataElement(AZ::Edit::UIHandlers::Default, &BillboardComponent::m_cameraEntityId, "Target Entity", "Select the Camera to look at.")
-                    
+
                     ->DataElement(AZ::Edit::UIHandlers::ComboBox, &BillboardComponent::m_billboardMode, "Billboard Mode", "How should the entity track the camera?")
-                        ->EnumAttribute(BillboardMode::Spherical, "Spherical (Look-At)")
-                        ->EnumAttribute(BillboardMode::Cylindrical, "Cylindrical (Lock Upright)")
-                        ->EnumAttribute(BillboardMode::CameraAligned, "Window-Aligned (Perfectly Flat)")
-                    
+                    ->EnumAttribute(BillboardMode::Spherical, "Spherical (Look-At)")
+                    ->EnumAttribute(BillboardMode::Cylindrical, "Cylindrical (Lock Upright)")
+                    ->EnumAttribute(BillboardMode::CameraAligned, "Window-Aligned (Perfectly Flat)")
+
                     ->DataElement(AZ::Edit::UIHandlers::Default, &BillboardComponent::m_angleOffset, "Angle Offset", "Rotation offset in degrees (e.g., 0, 45, 90)");
             }
         }
     }
 
-    void BillboardComponent::Init() 
+    void BillboardComponent::Init()
     {
-        // Debug Asserts
         AZ_Assert(GetEntityId().IsValid(), "Entity ID is invalid during BillboardComponent::Init!");
         AZ_Assert(GetEntity() != nullptr, "Entity pointer is null during BillboardComponent::Init!");
     }
 
     void BillboardComponent::Activate()
     {
-        // Debug Asserts
         AZ_Assert(GetEntityId().IsValid(), "Entity ID is invalid during BillboardComponent::Activate!");
         AZ_Assert(GetEntity() != nullptr, "Entity pointer is null during BillboardComponent::Activate!");
 
@@ -60,16 +58,14 @@ namespace BillboardGem
 
     void BillboardComponent::Deactivate()
     {
-        // Debug Asserts
         AZ_Assert(GetEntityId().IsValid(), "Entity ID is invalid during BillboardComponent::Deactivate!");
         AZ_Assert(GetEntity() != nullptr, "Entity pointer is null during BillboardComponent::Deactivate!");
 
         AZ::TickBus::Handler::BusDisconnect();
     }
 
-    void BillboardComponent::OnTick(float deltaTime, AZ::ScriptTimePoint time)
+    void BillboardComponent::OnTick(float deltaTime, AZ::ScriptTimePoint /*time*/)
     {
-        // Debug Asserts
         AZ_Assert(deltaTime >= 0.0f, "Delta time in OnTick cannot be negative!");
         AZ_Assert(GetEntityId().IsValid(), "Entity ID is invalid during BillboardComponent::OnTick!");
 
@@ -90,14 +86,14 @@ namespace BillboardGem
             if (m_billboardMode == BillboardMode::CameraAligned)
             {
                 AZ::Transform rotationOffset = AZ::Transform::CreateRotationZ(offsetRadians);
-                
+
                 finalTransform = cameraTransform * rotationOffset;
                 finalTransform.SetTranslation(myPosition);
             }
             else
             {
                 AZ::Vector3 targetPosition = cameraTransform.GetTranslation();
-                
+
                 if (m_billboardMode == BillboardMode::Cylindrical)
                 {
                     targetPosition.SetZ(myPosition.GetZ());
@@ -108,7 +104,7 @@ namespace BillboardGem
                     finalTransform = AZ::Transform::CreateLookAt(myPosition, targetPosition, AZ::Transform::Axis::YNegative);
                     finalTransform = finalTransform * AZ::Transform::CreateRotationZ(offsetRadians);
                 }
-                else 
+                else
                 {
                     return;
                 }

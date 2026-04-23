@@ -8,9 +8,9 @@ namespace BillboardGem
 {
     enum class BillboardMode : AZ::u32
     {
-        Spherical = 0,   // Looks directly at the camera (Tilts everywhere)
-        Cylindrical,     // Locks the Z-axis (Tilts horizontally only)
-        CameraAligned    // Copies camera rotation (Perfectly flat)
+        Spherical = 0,
+        Cylindrical,
+        CameraAligned
     };
 
     class BillboardComponent
@@ -32,8 +32,8 @@ namespace BillboardGem
     private:
         bool m_faceCamera = true;
         AZ::EntityId m_cameraEntityId;
-        BillboardMode m_billboardMode = BillboardMode::Spherical; 
-        
-        float m_angleOffset = 0.0f; 
+        BillboardMode m_billboardMode = BillboardMode::Spherical;
+
+        float m_angleOffset = 0.0f;
     };
 }
