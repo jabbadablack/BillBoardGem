@@ -1,11 +1,13 @@
 #include "BillboardComponent.h"
 #include <AzCore/Serialization/SerializeContext.h>
 #include <AzCore/Serialization/EditContext.h>
+#include <AzCore/RTTI/BehaviorContext.h> 
 #include <AzCore/Component/TransformBus.h>
 #include <AzCore/Math/Transform.h>
 #include <AzCore/Math/Matrix3x3.h>
 #include <AzCore/Debug/Trace.h> 
 #include <AzCore/Module/Environment.h>
+#include <cmath>
 
 namespace BillboardGem
 {
@@ -41,12 +43,22 @@ namespace BillboardGem
                 editBuilder.DataElement(AZ::Edit::UIHandlers::Default, &BillboardComponent::m_cameraEntityId, "Target Entity", "Select the Camera to look at.");
 
                 auto* modeBuilder = editBuilder.DataElement(AZ::Edit::UIHandlers::ComboBox, &BillboardComponent::m_billboardMode, "Billboard Mode", "How should the entity track the camera?");
-                modeBuilder->EnumAttribute(BillboardMode::Spherical, "Spherical (Look-At)");
-                modeBuilder->EnumAttribute(BillboardMode::Cylindrical, "Cylindrical (Lock Upright)");
-                modeBuilder->EnumAttribute(BillboardMode::CameraAligned, "Window-Aligned (Perfectly Flat)");
+                if (modeBuilder != nullptr)
+                {
+                    modeBuilder->EnumAttribute(BillboardMode::Spherical, "Spherical (Look-At)");
+                    modeBuilder->EnumAttribute(BillboardMode::Cylindrical, "Cylindrical (Lock Upright)");
+                    modeBuilder->EnumAttribute(BillboardMode::CameraAligned, "Window-Aligned (Perfectly Flat)");
+                }
 
                 editBuilder.DataElement(AZ::Edit::UIHandlers::Default, &BillboardComponent::m_angleOffset, "Angle Offset", "Rotation offset in degrees (e.g., 0, 45, 90)");
             }
+        }
+
+        AZ::BehaviorContext* behaviorContext = azrtti_cast<AZ::BehaviorContext*>(context);
+        if (behaviorContext != nullptr)
+        {
+            behaviorContext->EBus<BillboardRequestBus>("BillboardRequestBus")
+                ->Event("GetViewingAngle", &BillboardRequestBus::Events::GetViewingAngle);
         }
     }
 
@@ -83,6 +95,7 @@ namespace BillboardGem
             return;
         }
 
+        BillboardRequestBus::Handler::BusConnect(myEntityId);
         AZ::TickBus::Handler::BusConnect();
     }
 
@@ -103,6 +116,103 @@ namespace BillboardGem
         }
 
         AZ::TickBus::Handler::BusDisconnect();
+        BillboardRequestBus::Handler::BusDisconnect();
+    }
+
+    float BillboardComponent::GetViewingAngle()
+    {
+        AZ::EntityId myEntityId = GetEntityId();
+        AZ_Assert(myEntityId.IsValid(), "Entity ID is invalid during GetViewingAngle!");
+        AZ_Assert(GetEntity() != nullptr, "Entity pointer is null during GetViewingAngle!");
+
+        return m_viewingAngle;
+    }
+
+    void BillboardComponent::UpdateViewingAngle(const AZ::Vector3& myPosition, const AZ::Vector3& targetPosition)
+    {
+        AZ_Assert(GetEntityId().IsValid(), "Entity ID is invalid during UpdateViewingAngle!");
+        AZ_Assert(GetEntity() != nullptr, "Entity pointer is null during UpdateViewingAngle!");
+
+        AZ::Vector3 lookDirection = targetPosition - myPosition;
+        float dirX = lookDirection.GetX();
+        float dirY = lookDirection.GetY();
+
+        bool isNearZero = (dirX * dirX + dirY * dirY) < 0.0001f;
+        if (!isNearZero)
+        {
+            float angleRad = std::atan2(dirY, dirX);
+            m_viewingAngle = angleRad * (180.0f / AZ::Constants::Pi);
+        }
+        else
+        {
+            m_viewingAngle = 0.0f;
+        }
+    }
+
+    AZ::Transform BillboardComponent::CalculateRotation(const AZ::Transform& cameraTM, const AZ::Transform& myTM, const AZ::Vector3& myPos, const AZ::Vector3& targetPos)
+    {
+        AZ_Assert(GetEntityId().IsValid(), "Entity ID is invalid during CalculateRotation!");
+        AZ_Assert(GetEntity() != nullptr, "Entity pointer is null during CalculateRotation!");
+
+        float offsetRadians = m_angleOffset * (AZ::Constants::Pi / 180.0f);
+        AZ::Transform rotationTM = AZ::Transform::CreateIdentity();
+
+        if (m_billboardMode == BillboardMode::CameraAligned)
+        {
+            AZ::Quaternion camRotation = cameraTM.GetRotation();
+            rotationTM = AZ::Transform::CreateFromQuaternionAndTranslation(camRotation, AZ::Vector3::CreateZero());
+            rotationTM = rotationTM * AZ::Transform::CreateRotationZ(offsetRadians);
+            return rotationTM;
+        }
+
+        AZ::Vector3 localTargetPos = targetPos;
+        if (m_billboardMode == BillboardMode::Cylindrical)
+        {
+            localTargetPos.SetZ(myPos.GetZ());
+        }
+
+        bool isClose = myPos.IsClose(localTargetPos, 0.001f);
+        if (!isClose)
+        {
+            AZ::Vector3 lookDirToUse = localTargetPos - myPos;
+            rotationTM = AZ::Transform::CreateLookAt(AZ::Vector3::CreateZero(), lookDirToUse, AZ::Transform::Axis::YNegative);
+            rotationTM = rotationTM * AZ::Transform::CreateRotationZ(offsetRadians);
+        }
+        else
+        {
+            AZ::Quaternion myRotation = myTM.GetRotation();
+            rotationTM = AZ::Transform::CreateFromQuaternionAndTranslation(myRotation, AZ::Vector3::CreateZero());
+        }
+
+        return rotationTM;
+    }
+
+    AZ::Transform BillboardComponent::ApplyScaleAndTranslation(const AZ::Transform& rotationTM, const AZ::Transform& myTM, const AZ::Vector3& myPos)
+    {
+        AZ_Assert(GetEntityId().IsValid(), "Entity ID is invalid during ApplyScaleAndTranslation!");
+        AZ_Assert(GetEntity() != nullptr, "Entity pointer is null during ApplyScaleAndTranslation!");
+
+        AZ::Vector3 basisX = myTM.TransformPoint(AZ::Vector3(1.0f, 0.0f, 0.0f)) - myTM.GetTranslation();
+        AZ::Vector3 basisY = myTM.TransformPoint(AZ::Vector3(0.0f, 1.0f, 0.0f)) - myTM.GetTranslation();
+        AZ::Vector3 basisZ = myTM.TransformPoint(AZ::Vector3(0.0f, 0.0f, 1.0f)) - myTM.GetTranslation();
+
+        AZ::Vector3 myScale = AZ::Vector3(basisX.GetLength(), basisY.GetLength(), basisZ.GetLength());
+
+        AZ::Vector3 rotBasisX = rotationTM.TransformPoint(AZ::Vector3(1.0f, 0.0f, 0.0f)) - rotationTM.GetTranslation();
+        AZ::Vector3 rotBasisY = rotationTM.TransformPoint(AZ::Vector3(0.0f, 1.0f, 0.0f)) - rotationTM.GetTranslation();
+        AZ::Vector3 rotBasisZ = rotationTM.TransformPoint(AZ::Vector3(0.0f, 0.0f, 1.0f)) - rotationTM.GetTranslation();
+
+        AZ::Vector3 scaledBasisX = rotBasisX * myScale.GetX();
+        AZ::Vector3 scaledBasisY = rotBasisY * myScale.GetY();
+        AZ::Vector3 scaledBasisZ = rotBasisZ * myScale.GetZ();
+
+        AZ::Matrix3x3 finalMatrix = AZ::Matrix3x3::CreateIdentity();
+        finalMatrix.SetColumn(0, scaledBasisX);
+        finalMatrix.SetColumn(1, scaledBasisY);
+        finalMatrix.SetColumn(2, scaledBasisZ);
+
+        AZ::Transform finalTransform = AZ::Transform::CreateFromMatrix3x3AndTranslation(finalMatrix, myPos);
+        return finalTransform;
     }
 
     void BillboardComponent::OnTick(float deltaTime, AZ::ScriptTimePoint /*time*/)
@@ -120,7 +230,12 @@ namespace BillboardGem
             return;
         }
 
-        if (!m_faceCamera || !m_cameraEntityId.IsValid())
+        if (!m_faceCamera)
+        {
+            return;
+        }
+
+        if (!m_cameraEntityId.IsValid())
         {
             return;
         }
@@ -132,58 +247,13 @@ namespace BillboardGem
         AZ::TransformBus::EventResult(myTransform, myEntityId, &AZ::TransformBus::Events::GetWorldTM);
 
         AZ::Vector3 myPosition = myTransform.GetTranslation();
+        AZ::Vector3 targetPosition = cameraTransform.GetTranslation();
 
-        AZ::Vector3 basisX = myTransform.TransformPoint(AZ::Vector3(1.0f, 0.0f, 0.0f)) - myTransform.GetTranslation();
-        AZ::Vector3 basisY = myTransform.TransformPoint(AZ::Vector3(0.0f, 1.0f, 0.0f)) - myTransform.GetTranslation();
-        AZ::Vector3 basisZ = myTransform.TransformPoint(AZ::Vector3(0.0f, 0.0f, 1.0f)) - myTransform.GetTranslation();
+        UpdateViewingAngle(myPosition, targetPosition);
 
-        AZ::Vector3 myScale = AZ::Vector3(basisX.GetLength(), basisY.GetLength(), basisZ.GetLength());
+        AZ::Transform rotationTransform = CalculateRotation(cameraTransform, myTransform, myPosition, targetPosition);
 
-        float offsetRadians = m_angleOffset * (AZ::Constants::Pi / 180.0f);
-        AZ::Transform rotationTransform = AZ::Transform::CreateIdentity();
-
-        if (m_billboardMode == BillboardMode::CameraAligned)
-        {
-            AZ::Quaternion camRotation = cameraTransform.GetRotation();
-            rotationTransform = AZ::Transform::CreateFromQuaternionAndTranslation(camRotation, AZ::Vector3::CreateZero());
-            rotationTransform = rotationTransform * AZ::Transform::CreateRotationZ(offsetRadians);
-        }
-        else
-        {
-            AZ::Vector3 targetPosition = cameraTransform.GetTranslation();
-            if (m_billboardMode == BillboardMode::Cylindrical)
-            {
-                targetPosition.SetZ(myPosition.GetZ());
-            }
-
-            bool isClose = myPosition.IsClose(targetPosition, 0.001f);
-            if (!isClose)
-            {
-                AZ::Vector3 lookDirection = targetPosition - myPosition;
-                rotationTransform = AZ::Transform::CreateLookAt(AZ::Vector3::CreateZero(), lookDirection, AZ::Transform::Axis::YNegative);
-                rotationTransform = rotationTransform * AZ::Transform::CreateRotationZ(offsetRadians);
-            }
-            else
-            {
-                AZ::Quaternion myRotation = myTransform.GetRotation();
-                rotationTransform = AZ::Transform::CreateFromQuaternionAndTranslation(myRotation, AZ::Vector3::CreateZero());
-            }
-        }
-
-        AZ::Vector3 rotBasisX = rotationTransform.TransformPoint(AZ::Vector3(1.0f, 0.0f, 0.0f)) - rotationTransform.GetTranslation();
-        AZ::Vector3 rotBasisY = rotationTransform.TransformPoint(AZ::Vector3(0.0f, 1.0f, 0.0f)) - rotationTransform.GetTranslation();
-        AZ::Vector3 rotBasisZ = rotationTransform.TransformPoint(AZ::Vector3(0.0f, 0.0f, 1.0f)) - rotationTransform.GetTranslation();
-
-        AZ::Vector3 scaledBasisX = rotBasisX * myScale.GetX();
-        AZ::Vector3 scaledBasisY = rotBasisY * myScale.GetY();
-        AZ::Vector3 scaledBasisZ = rotBasisZ * myScale.GetZ();
-
-        AZ::Matrix3x3 finalMatrix = AZ::Matrix3x3::CreateIdentity();
-        finalMatrix.SetColumn(0, scaledBasisX);
-        finalMatrix.SetColumn(1, scaledBasisY);
-        finalMatrix.SetColumn(2, scaledBasisZ);
-
-        AZ::Transform finalTransform = AZ::Transform::CreateFromMatrix3x3AndTranslation(finalMatrix, myPosition);
+        AZ::Transform finalTransform = ApplyScaleAndTranslation(rotationTransform, myTransform, myPosition);
 
         AZ::TransformBus::Event(myEntityId, &AZ::TransformBus::Events::SetWorldTM, finalTransform);
     }
