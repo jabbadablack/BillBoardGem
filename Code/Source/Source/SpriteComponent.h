@@ -4,7 +4,7 @@
 #include <AzCore/Component/TickBus.h>
 #include <AzCore/std/string/string.h>
 #include <AzCore/std/containers/vector.h>
-#include <AtomLyIntegration/CommonFeatures/Material/MaterialAssignment.h> 
+#include <AtomLyIntegration/CommonFeatures/Material/MaterialAssignment.h>
 
 namespace BillboardGem
 {
@@ -23,7 +23,7 @@ namespace BillboardGem
     class SpriteAnimatorRequests : public AZ::ComponentBus
     {
     public:
-        AZ_RTTI(SpriteAnimatorRequests, "{FE6F4CA8-0051-4B96-8AC9-19A6AC6B93F4}");
+        AZ_RTTI(SpriteAnimatorRequests, "{b06447b6-b48b-4073-878f-32111b0a517d}");
         virtual ~SpriteAnimatorRequests() = default;
 
         virtual void PlayAnimation(const AZStd::string& animationName) = 0;
