@@ -4,72 +4,29 @@
 #include <AzCore/RTTI/BehaviorContext.h> 
 #include <AtomLyIntegration/CommonFeatures/Material/MaterialComponentBus.h>
 #include <AzCore/std/any.h>
-#include <AzCore/Debug/Trace.h> 
-#include <AzCore/Module/Environment.h>
 
 namespace BillboardGem
 {
     void SpriteComponent::Reflect(AZ::ReflectContext* context)
     {
-        AZ_Assert(context != nullptr, "ReflectContext is null! Cannot reflect SpriteComponent.");
-        AZ_Assert(AZ::Environment::GetInstance() != nullptr, "O3DE Environment is not fully initialized.");
+        SpriteAnimationAsset::Reflect(context); // Reflect the asset here too!
 
         if (auto serializeContext = azrtti_cast<AZ::SerializeContext*>(context))
         {
-            serializeContext->Class<SpriteAnimation>()
-                ->Version(2)
-                ->Field("Name", &SpriteAnimation::m_name)
-                ->Field("StartRow", &SpriteAnimation::m_startRow)
-                ->Field("StartColumn", &SpriteAnimation::m_startColumn)
-                ->Field("FrameCount", &SpriteAnimation::m_frameCount)
-                ->Field("FPS", &SpriteAnimation::m_fps);
-
             serializeContext->Class<SpriteComponent, AZ::Component>()
                 ->Version(2)
                 ->Field("MaterialEntity", &SpriteComponent::m_materialEntityId)
-                ->Field("UVTileUProperty", &SpriteComponent::m_uvTileUProperty)
-                ->Field("UVTileVProperty", &SpriteComponent::m_uvTileVProperty)
-                ->Field("UVOffsetUProperty", &SpriteComponent::m_uvOffsetUProperty)
-                ->Field("UVOffsetVProperty", &SpriteComponent::m_uvOffsetVProperty)
-                ->Field("Columns", &SpriteComponent::m_columns)
-                ->Field("Rows", &SpriteComponent::m_rows)
-                ->Field("DefaultAnimation", &SpriteComponent::m_defaultAnimation)
-                ->Field("Animations", &SpriteComponent::m_animations);
+                ->Field("SpriteAsset", &SpriteComponent::m_spriteAsset);
 
             if (AZ::EditContext* editContext = serializeContext->GetEditContext())
             {
-                editContext->Class<SpriteAnimation>("Animation State", "A single animation sequence")
-                    ->ClassElement(AZ::Edit::ClassElements::EditorData, "")
-                    ->DataElement(AZ::Edit::UIHandlers::Default, &SpriteAnimation::m_name, "Name", "")
-                    ->DataElement(AZ::Edit::UIHandlers::Default, &SpriteAnimation::m_startRow, "Start Row", "Row index (Starts at 0)")
-                    ->Attribute(AZ::Edit::Attributes::Min, 0)
-                    ->DataElement(AZ::Edit::UIHandlers::Default, &SpriteAnimation::m_startColumn, "Start Column", "Column index (Starts at 0)")
-                    ->Attribute(AZ::Edit::Attributes::Min, 0)
-                    ->DataElement(AZ::Edit::UIHandlers::Default, &SpriteAnimation::m_frameCount, "Frame Count", "Total frames in this animation")
-                    ->Attribute(AZ::Edit::Attributes::Min, 1)
-                    ->DataElement(AZ::Edit::UIHandlers::Default, &SpriteAnimation::m_fps, "FPS", "");
-
-                editContext->Class<SpriteComponent>("Sprite Animator", "Plays specific animations from a spritesheet.")
+                editContext->Class<SpriteComponent>("Sprite Animator", "Plays sprite animations from a .spranim asset.")
                     ->ClassElement(AZ::Edit::ClassElements::EditorData, "")
                     ->Attribute(AZ::Edit::Attributes::Category, "Rendering")
                     ->Attribute(AZ::Edit::Attributes::AppearsInAddComponentMenu, AZ_CRC_CE("Game"))
 
-                    ->ClassElement(AZ::Edit::ClassElements::Group, "Grid Settings")
-                    ->DataElement(AZ::Edit::UIHandlers::Default, &SpriteComponent::m_columns, "Columns", "")
-                    ->Attribute(AZ::Edit::Attributes::Min, 1)
-                    ->DataElement(AZ::Edit::UIHandlers::Default, &SpriteComponent::m_rows, "Rows", "")
-                    ->Attribute(AZ::Edit::Attributes::Min, 1)
-
-                    ->ClassElement(AZ::Edit::ClassElements::Group, "Material Integration")
                     ->DataElement(AZ::Edit::UIHandlers::Default, &SpriteComponent::m_materialEntityId, "Target Entity", "Leave blank to target this entity.")
-                    ->DataElement(AZ::Edit::UIHandlers::Default, &SpriteComponent::m_uvTileUProperty, "Tile U String", "")
-                    ->DataElement(AZ::Edit::UIHandlers::Default, &SpriteComponent::m_uvTileVProperty, "Tile V String", "")
-                    ->DataElement(AZ::Edit::UIHandlers::Default, &SpriteComponent::m_uvOffsetUProperty, "Offset U String", "")
-                    ->DataElement(AZ::Edit::UIHandlers::Default, &SpriteComponent::m_uvOffsetVProperty, "Offset V String", "")
-
-                    ->ClassElement(AZ::Edit::ClassElements::Group, "Animations")
-                    ->DataElement(AZ::Edit::UIHandlers::Default, &SpriteComponent::m_defaultAnimation, "Default State", "")
-                    ->DataElement(AZ::Edit::UIHandlers::Default, &SpriteComponent::m_animations, "Animation List", "");
+                    ->DataElement(AZ::Edit::UIHandlers::Default, &SpriteComponent::m_spriteAsset, "Sprite Asset", "The .spranim file containing the animation data.");
             }
         }
 
@@ -81,44 +38,61 @@ namespace BillboardGem
         }
     }
 
-    void SpriteComponent::Init()
-    {
-        AZ_Assert(GetEntityId().IsValid(), "Entity ID is invalid during SpriteComponent::Init!");
-        AZ_Assert(GetEntity() != nullptr, "Entity pointer is null during SpriteComponent::Init!");
-    }
+    void SpriteComponent::Init() {}
 
     void SpriteComponent::Activate()
     {
-        AZ_Assert(GetEntityId().IsValid(), "Entity ID is invalid during SpriteComponent::Activate!");
-        AZ_Assert(m_columns > 0 && m_rows > 0, "Grid columns and rows must be strictly greater than zero to safely activate!");
-
         m_isMaterialInitialized = false;
-
         SpriteAnimatorRequestBus::Handler::BusConnect(GetEntityId());
-        PlayAnimation(m_defaultAnimation);
-        AZ::TickBus::Handler::BusConnect();
+
+        // Queue the asset to load async when the component starts
+        if (m_spriteAsset.GetId().IsValid())
+        {
+            AZ::Data::AssetBus::Handler::BusConnect(m_spriteAsset.GetId());
+            m_spriteAsset.QueueLoad();
+        }
     }
 
     void SpriteComponent::Deactivate()
     {
-        AZ_Assert(GetEntityId().IsValid(), "Entity ID is invalid during SpriteComponent::Deactivate!");
-        AZ_Assert(GetEntity() != nullptr, "Entity pointer is null during SpriteComponent::Deactivate!");
-
         AZ::TickBus::Handler::BusDisconnect();
         SpriteAnimatorRequestBus::Handler::BusDisconnect();
+        AZ::Data::AssetBus::Handler::BusDisconnect();
+        
+        if (m_spriteAsset.GetId().IsValid())
+        {
+            m_spriteAsset.Release();
+        }
+    }
+
+    void SpriteComponent::OnAssetReady(AZ::Data::Asset<AZ::Data::AssetData> asset)
+    {
+        m_spriteAsset = asset;
+        
+        // Once the asset is ready, start the animation and connect to the TickBus
+        if (m_spriteAsset.IsReady())
+        {
+            PlayAnimation(m_spriteAsset.Get()->m_defaultAnimation);
+            AZ::TickBus::Handler::BusConnect();
+        }
+    }
+
+    void SpriteComponent::OnAssetReloaded(AZ::Data::Asset<AZ::Data::AssetData> asset)
+    {
+        OnAssetReady(asset); // Re-initialize if the user edits the asset while the game is running
     }
 
     void SpriteComponent::PlayAnimation(const AZStd::string& animationName)
     {
-        AZ_Assert(!animationName.empty(), "Animation name passed to PlayAnimation cannot be empty!");
-        AZ_Assert(m_columns > 0 && m_rows > 0, "Grid columns and rows must be valid before attempting to calculate frame indexes!");
+        if (!m_spriteAsset.IsReady()) return;
 
-        for (const auto& anim : m_animations)
+        auto* assetData = m_spriteAsset.Get();
+        for (const auto& anim : assetData->m_animations)
         {
             if (anim.m_name == animationName)
             {
                 m_currentAnim = anim;
-                m_currentFrame = (anim.m_startRow * m_columns) + anim.m_startColumn;
+                m_currentFrame = (anim.m_startRow * assetData->m_columns) + anim.m_startColumn;
                 m_timeAccumulator = 0.0f;
                 m_isPlaying = true;
                 return;
@@ -128,27 +102,21 @@ namespace BillboardGem
 
     void SpriteComponent::StopAnimation()
     {
-        AZ_Assert(GetEntityId().IsValid(), "Entity ID is invalid during SpriteComponent::StopAnimation!");
-        AZ_Assert(GetEntity() != nullptr, "Entity pointer is null during SpriteComponent::StopAnimation!");
-
         m_isPlaying = false;
     }
 
     AZStd::vector<AZ::Render::MaterialAssignmentId> SpriteComponent::GetActiveMaterialIds(AZ::EntityId targetEntity)
     {
-        AZ_Assert(targetEntity.IsValid(), "Target entity passed to GetActiveMaterialIds is invalid!");
-        AZ_Assert(AZ::Render::MaterialComponentRequestBus::HasHandlers(targetEntity), "Target entity does not have a connected MaterialComponentRequestBus!");
-
         AZStd::vector<AZ::Render::MaterialAssignmentId> ids;
         AZ::Render::MaterialAssignmentMap materialMap;
 
-        AZ::Render::MaterialComponentRequestBus::EventResult(
-            materialMap, targetEntity, &AZ::Render::MaterialComponentRequests::GetMaterialMap);
+        if (!AZ::Render::MaterialComponentRequestBus::HasHandlers(targetEntity)) return ids;
+
+        AZ::Render::MaterialComponentRequestBus::EventResult(materialMap, targetEntity, &AZ::Render::MaterialComponentRequests::GetMaterialMap);
 
         if (materialMap.empty())
         {
-            AZ::Render::MaterialComponentRequestBus::EventResult(
-                materialMap, targetEntity, &AZ::Render::MaterialComponentRequests::GetDefaultMaterialMap);
+            AZ::Render::MaterialComponentRequestBus::EventResult(materialMap, targetEntity, &AZ::Render::MaterialComponentRequests::GetDefaultMaterialMap);
         }
 
         for (const auto& pair : materialMap)
@@ -156,51 +124,40 @@ namespace BillboardGem
             ids.push_back(pair.first);
         }
 
-        if (ids.empty())
-        {
-            ids.push_back(AZ::Render::MaterialAssignmentId());
-        }
+        if (ids.empty()) ids.push_back(AZ::Render::MaterialAssignmentId());
 
         return ids;
     }
 
     void SpriteComponent::ApplyMaterialScale(float tileU, float tileV)
     {
-        AZ_Assert(tileU > 0.0f, "Tile U scale calculated as zero or negative!");
-        AZ_Assert(tileV > 0.0f, "Tile V scale calculated as zero or negative!");
-
         AZ::EntityId targetEntity = m_materialEntityId.IsValid() ? m_materialEntityId : GetEntityId();
         auto materialIds = GetActiveMaterialIds(targetEntity);
+        if (materialIds.empty() || !m_spriteAsset.IsReady()) return;
 
         for (const auto& id : materialIds)
         {
-            AZ::Render::MaterialComponentRequestBus::Event(
-                targetEntity, &AZ::Render::MaterialComponentRequests::SetPropertyValue,
-                id, m_uvTileUProperty, AZStd::make_any<float>(tileU));
+            AZ::Render::MaterialComponentRequestBus::Event(targetEntity, &AZ::Render::MaterialComponentRequests::SetPropertyValue,
+                id, m_spriteAsset.Get()->m_uvTileUProperty, AZStd::make_any<float>(tileU));
 
-            AZ::Render::MaterialComponentRequestBus::Event(
-                targetEntity, &AZ::Render::MaterialComponentRequests::SetPropertyValue,
-                id, m_uvTileVProperty, AZStd::make_any<float>(tileV));
+            AZ::Render::MaterialComponentRequestBus::Event(targetEntity, &AZ::Render::MaterialComponentRequests::SetPropertyValue,
+                id, m_spriteAsset.Get()->m_uvTileVProperty, AZStd::make_any<float>(tileV));
         }
     }
 
     void SpriteComponent::ApplyMaterialOffset(float offsetU, float offsetV)
     {
-        AZ_Assert(!m_uvOffsetUProperty.empty(), "UV Offset U property string is empty! Material update will fail.");
-        AZ_Assert(!m_uvOffsetVProperty.empty(), "UV Offset V property string is empty! Material update will fail.");
-
         AZ::EntityId targetEntity = m_materialEntityId.IsValid() ? m_materialEntityId : GetEntityId();
         auto materialIds = GetActiveMaterialIds(targetEntity);
+        if (materialIds.empty() || !m_spriteAsset.IsReady()) return;
 
         for (const auto& id : materialIds)
         {
-            AZ::Render::MaterialComponentRequestBus::Event(
-                targetEntity, &AZ::Render::MaterialComponentRequests::SetPropertyValue,
-                id, m_uvOffsetUProperty, AZStd::make_any<float>(offsetU));
+            AZ::Render::MaterialComponentRequestBus::Event(targetEntity, &AZ::Render::MaterialComponentRequests::SetPropertyValue,
+                id, m_spriteAsset.Get()->m_uvOffsetUProperty, AZStd::make_any<float>(offsetU));
 
-            AZ::Render::MaterialComponentRequestBus::Event(
-                targetEntity, &AZ::Render::MaterialComponentRequests::SetPropertyValue,
-                id, m_uvOffsetVProperty, AZStd::make_any<float>(offsetV));
+            AZ::Render::MaterialComponentRequestBus::Event(targetEntity, &AZ::Render::MaterialComponentRequests::SetPropertyValue,
+                id, m_spriteAsset.Get()->m_uvOffsetVProperty, AZStd::make_any<float>(offsetV));
         }
     }
 
@@ -221,27 +178,23 @@ namespace BillboardGem
 
     void SpriteComponent::OnTick(float deltaTime, AZ::ScriptTimePoint /*time*/)
     {
-        AZ_Assert(deltaTime >= 0.0f, "Delta time in OnTick is negative!");
+        if (!m_spriteAsset.IsReady()) return;
 
+        auto* assetData = m_spriteAsset.Get();
         AZ::EntityId targetEntity = m_materialEntityId.IsValid() ? m_materialEntityId : GetEntityId();
 
-        if (!AZ::Render::MaterialComponentRequestBus::HasHandlers(targetEntity))
-        {
-            return;
-        }
+        if (!AZ::Render::MaterialComponentRequestBus::HasHandlers(targetEntity)) return;
 
         if (!m_isMaterialInitialized)
         {
-            if (m_columns > 0 && m_rows > 0)
+            if (assetData->m_columns > 0 && assetData->m_rows > 0)
             {
-                float tileU = 1.0f / static_cast<float>(m_columns);
-                float tileV = 1.0f / static_cast<float>(m_rows);
-                ApplyMaterialScale(tileU, tileV);
+                ApplyMaterialScale(1.0f / assetData->m_columns, 1.0f / assetData->m_rows);
             }
             m_isMaterialInitialized = true;
         }
 
-        if (!m_isPlaying || m_columns <= 0 || m_rows <= 0 || m_currentAnim.m_frameCount <= 0 || m_currentAnim.m_fps <= 0.0f) return;
+        if (!m_isPlaying || assetData->m_columns <= 0 || assetData->m_rows <= 0 || m_currentAnim.m_frameCount <= 0 || m_currentAnim.m_fps <= 0.0f) return;
 
         m_timeAccumulator += deltaTime;
         float frameDuration = 1.0f / m_currentAnim.m_fps;
@@ -251,7 +204,7 @@ namespace BillboardGem
             m_timeAccumulator -= frameDuration;
             m_currentFrame++;
 
-            int globalStartFrame = (m_currentAnim.m_startRow * m_columns) + m_currentAnim.m_startColumn;
+            int globalStartFrame = (m_currentAnim.m_startRow * assetData->m_columns) + m_currentAnim.m_startColumn;
             int globalEndFrame = globalStartFrame + m_currentAnim.m_frameCount - 1;
 
             if (m_currentFrame > globalEndFrame)
@@ -259,16 +212,13 @@ namespace BillboardGem
                 m_currentFrame = globalStartFrame;
             }
 
-            float scaleX = 1.0f / static_cast<float>(m_columns);
-            float scaleY = 1.0f / static_cast<float>(m_rows);
+            float scaleX = 1.0f / static_cast<float>(assetData->m_columns);
+            float scaleY = 1.0f / static_cast<float>(assetData->m_rows);
 
-            int currentColumn = m_currentFrame % m_columns;
-            int currentRow = m_currentFrame / m_columns;
+            int currentColumn = m_currentFrame % assetData->m_columns;
+            int currentRow = m_currentFrame / assetData->m_columns;
 
-            float offsetX = currentColumn * scaleX;
-            float offsetY = currentRow * scaleY;
-
-            ApplyMaterialOffset(offsetX, offsetY);
+            ApplyMaterialOffset(currentColumn * scaleX, currentRow * scaleY);
         }
     }
 }

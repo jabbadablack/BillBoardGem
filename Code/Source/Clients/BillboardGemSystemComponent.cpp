@@ -5,6 +5,9 @@
 
 #include <AzCore/Serialization/SerializeContext.h>
 
+#include <AzFramework/Asset/GenericAssetHandler.h>
+#include "../Source/SpriteAnimationAsset.h"
+
 namespace BillboardGem
 {
     AZ_COMPONENT_IMPL(BillboardGemSystemComponent, "BillboardGemSystemComponent",
@@ -62,12 +65,22 @@ namespace BillboardGem
     {
         BillboardGemRequestBus::Handler::BusConnect();
         AZ::TickBus::Handler::BusConnect();
+
+        m_spriteAssetHandler = aznew AzFramework::GenericAssetHandler<SpriteAnimationAsset>("Sprite Animation", "Rendering", "spranim");
+        m_spriteAssetHandler->Register();
     }
 
     void BillboardGemSystemComponent::Deactivate()
     {
         AZ::TickBus::Handler::BusDisconnect();
         BillboardGemRequestBus::Handler::BusDisconnect();
+
+        if (m_spriteAssetHandler)
+        {
+            m_spriteAssetHandler->Unregister();
+            delete m_spriteAssetHandler;
+            m_spriteAssetHandler = nullptr;
+        }
     }
 
     void BillboardGemSystemComponent::OnTick([[maybe_unused]] float deltaTime, [[maybe_unused]] AZ::ScriptTimePoint time)

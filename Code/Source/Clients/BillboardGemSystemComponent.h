@@ -5,6 +5,9 @@
 #include <AzCore/Component/TickBus.h>
 #include <BillboardGem/BillboardGemBus.h>
 
+#include <AzFramework/Asset/GenericAssetHandler.h>
+#include "../Source/SpriteAnimationAsset.h"
+
 namespace BillboardGem
 {
     class BillboardGemSystemComponent
@@ -42,6 +45,10 @@ namespace BillboardGem
         // AZTickBus interface implementation
         void OnTick(float deltaTime, AZ::ScriptTimePoint time) override;
         ////////////////////////////////////////////////////////////////////////
+
+    private:
+        // NEW: Declare the variable here so the .cpp file knows what it is!
+        AzFramework::GenericAssetHandler<SpriteAnimationAsset>* m_spriteAssetHandler = nullptr;
     };
 
 } // namespace BillboardGem

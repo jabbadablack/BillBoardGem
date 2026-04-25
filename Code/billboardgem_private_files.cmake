@@ -6,6 +6,8 @@ set(FILES
     Source/Source/BillboardComponent.h
     Source/Source/SpriteComponent.cpp
     Source/Source/SpriteComponent.h
+    Source/Source/SpriteAnimationAsset.cpp
+    Source/Source/SpriteAnimationAsset.h
     Source/Clients/BillboardGemSystemComponent.cpp
     Source/Clients/BillboardGemSystemComponent.h
 )

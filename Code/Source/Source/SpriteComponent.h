@@ -2,28 +2,18 @@
 
 #include <AzCore/Component/Component.h>
 #include <AzCore/Component/TickBus.h>
-#include <AzCore/std/string/string.h>
-#include <AzCore/std/containers/vector.h>
-#include <AtomLyIntegration/CommonFeatures/Material/MaterialAssignment.h> 
+#include <AzCore/Asset/AssetCommon.h>
+#include <AzCore/Asset/AssetManagerBus.h>
+#include <AzCore/Asset/AssetSerializer.h>
+#include "SpriteAnimationAsset.h"
+#include <AtomLyIntegration/CommonFeatures/Material/MaterialAssignment.h>
 
 namespace BillboardGem
 {
-    struct SpriteAnimation
-    {
-        AZ_TYPE_INFO(SpriteAnimation, "{3b6a9f81-a9c1-4b13-9b7e-91325d72f12a}");
-        AZ_CLASS_ALLOCATOR(SpriteAnimation, AZ::SystemAllocator);
-
-        AZStd::string m_name = "Idle";
-        int m_startRow = 0;
-        int m_startColumn = 0;
-        int m_frameCount = 1;
-        float m_fps = 12.0f;
-    };
-
     class SpriteAnimatorRequests : public AZ::ComponentBus
     {
     public:
-        AZ_RTTI(SpriteAnimatorRequests, "{FE6F4CA8-0051-4B96-8AC9-19A6AC6B93F4}");
+        AZ_RTTI(SpriteAnimatorRequests, "{b06447b6-b48b-4073-878f-32111b0a517d}");
         virtual ~SpriteAnimatorRequests() = default;
 
         virtual void PlayAnimation(const AZStd::string& animationName) = 0;
@@ -35,6 +25,7 @@ namespace BillboardGem
         : public AZ::Component
         , protected AZ::TickBus::Handler
         , public SpriteAnimatorRequestBus::Handler
+        , protected AZ::Data::AssetBus::Handler // NEW: Listens for Asset loading
     {
     public:
         AZ_COMPONENT(SpriteComponent, "{1dacaae8-c704-45ce-9928-8ecb9b9ba97c}");
@@ -49,6 +40,10 @@ namespace BillboardGem
         void Deactivate() override;
 
     protected:
+        // AssetBus Overrides
+        void OnAssetReady(AZ::Data::Asset<AZ::Data::AssetData> asset) override;
+        void OnAssetReloaded(AZ::Data::Asset<AZ::Data::AssetData> asset) override;
+
         void OnTick(float deltaTime, AZ::ScriptTimePoint time) override;
 
         void PlayAnimation(const AZStd::string& animationName) override;
@@ -56,23 +51,14 @@ namespace BillboardGem
 
     private:
         AZStd::vector<AZ::Render::MaterialAssignmentId> GetActiveMaterialIds(AZ::EntityId targetEntity);
-
         void ApplyMaterialScale(float tileU, float tileV);
         void ApplyMaterialOffset(float offsetU, float offsetV);
 
+        // Editor Properties
         AZ::EntityId m_materialEntityId;
+        AZ::Data::Asset<SpriteAnimationAsset> m_spriteAsset; 
 
-        AZStd::string m_uvTileUProperty = "uv.tileU";
-        AZStd::string m_uvTileVProperty = "uv.tileV";
-        AZStd::string m_uvOffsetUProperty = "uv.offsetU";
-        AZStd::string m_uvOffsetVProperty = "uv.offsetV";
-
-        int m_columns = 1;
-        int m_rows = 1;
-
-        AZStd::vector<SpriteAnimation> m_animations;
-        AZStd::string m_defaultAnimation = "Idle";
-
+        // Internal State
         bool m_isPlaying = false;
         bool m_isMaterialInitialized = false;
         SpriteAnimation m_currentAnim;
